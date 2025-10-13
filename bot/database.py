@@ -1,3 +1,4 @@
+# bot/database.py
 import mysql.connector
 from mysql.connector import Error
 from dotenv import load_dotenv
@@ -5,6 +6,7 @@ import os
 
 load_dotenv()
 
+# --- 1️⃣ Database connection ---
 def get_connection():
     try:
         connection = mysql.connector.connect(
@@ -19,8 +21,11 @@ def get_connection():
         return None
 
 
+# --- 2️⃣ Initialize database table ---
 def init_db():
     connection = get_connection()
+    if connection is None:
+        return
     cursor = connection.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS grievances (
@@ -28,7 +33,11 @@ def init_db():
             user_id BIGINT,
             username VARCHAR(255),
             grievance TEXT,
-            status VARCHAR(50) DEFAULT 'Pending'
+            issue VARCHAR(255) DEFAULT 'General complaint',
+            location VARCHAR(255) DEFAULT 'unknown',
+            ai_reply VARCHAR(500) DEFAULT '',
+            status VARCHAR(50) DEFAULT 'Pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
     connection.commit()
@@ -36,20 +45,34 @@ def init_db():
     connection.close()
 
 
-def save_grievance(user_id, username, grievance):
-    connection = get_connection()
-    cursor = connection.cursor()
-    query = "INSERT INTO grievances (user_id, username, grievance) VALUES (%s, %s, %s)"
-    cursor.execute(query, (user_id, username, grievance))
-    connection.commit()
+# --- 3️⃣ Save grievance ---
+def save_grievance(user_id, username, grievance, issue="General complaint", location="unknown", ai_reply=""):
+    """
+    Save a grievance into the MySQL database.
+    """
+    conn = get_connection()
+    if conn is None:
+        print("Failed to connect to database.")
+        return
+    cursor = conn.cursor(dictionary=True)
+
+    query = """
+    INSERT INTO grievances (user_id, username, grievance, issue, location, ai_reply, status)
+    VALUES (%s, %s, %s, %s, %s, %s, 'Pending')
+    """
+    cursor.execute(query, (user_id, username, grievance, issue, location, ai_reply))
+    conn.commit()
     cursor.close()
-    connection.close()
+    conn.close()
 
 
+# --- 4️⃣ Get user grievances ---
 def get_status(user_id):
     connection = get_connection()
+    if connection is None:
+        return []
     cursor = connection.cursor(dictionary=True)
-    query = "SELECT id, grievance, status FROM grievances WHERE user_id = %s ORDER BY id DESC"
+    query = "SELECT id, grievance, issue, location, ai_reply, status, created_at FROM grievances WHERE user_id = %s ORDER BY id DESC"
     cursor.execute(query, (user_id,))
     rows = cursor.fetchall()
     cursor.close()

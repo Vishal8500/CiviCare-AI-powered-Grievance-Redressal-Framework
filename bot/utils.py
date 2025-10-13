@@ -1,11 +1,15 @@
 import os
-from google import genai
+import google.generativeai as genai
 from dotenv import load_dotenv
 
+# Load environment variables
 load_dotenv()
 
-# Initialize Gemini client
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+# Configure Gemini API key
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+
+# Initialize model (you can also use gemini-1.5-flash)
+model = genai.GenerativeModel("gemini-2.5-flash")
 
 def get_gemini_reply(user_message: str) -> str:
     """
@@ -18,11 +22,12 @@ def get_gemini_reply(user_message: str) -> str:
             "acknowledging the issue and assuring timely action. Keep it under 2 sentences."
         )
 
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=f"{system_prompt}\nCitizen complaint: {user_message}"
+        # Send prompt to Gemini
+        response = model.generate_content(
+            f"{system_prompt}\nCitizen complaint: {user_message}"
         )
 
+        # Return Gemini's response text
         return response.text.strip()
 
     except Exception as e:
