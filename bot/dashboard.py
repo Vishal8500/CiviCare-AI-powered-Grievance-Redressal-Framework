@@ -1,10 +1,11 @@
 # ==========================================
-# 🏛️ Civic Grievance Collector Dashboard (Enhanced with Priority Analytics)
+# 🏛️ Civic Grievance Collector Dashboard (Enhanced with Priority Analytics + Zoomable Photos)
 # ==========================================
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 from database import get_connection, DB_NAME
+import base64
 
 # --- Page Config ---
 st.set_page_config(
@@ -30,6 +31,7 @@ st.markdown("""
         border-color: #f59e0b;
         background-color: #111827;
     }
+    img:hover { transform: scale(1.05); transition: transform 0.2s; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -45,37 +47,21 @@ def get_all_grievances():
     conn.close()
     return pd.DataFrame(data)
 
-import base64
-
-def convert_blob_to_image_html(blob_data):
-    if not blob_data:
-        return "❌ No Image"
-    base64_str = base64.b64encode(blob_data).decode('utf-8')
-    return f"<img src='data:image/jpeg;base64,{base64_str}' width='150' style='border-radius:10px'/>"
-
-
 # --- Data Preparation ---
 def prepare_data(df):
     if df.empty:
         return df
     df['created_at'] = pd.to_datetime(df['created_at'])
     df['Date'] = df['created_at'].dt.strftime('%Y-%m-%d %H:%M')
-
-    # ✅ Detect whether photo exists in BLOB
     df['Photo Status'] = df['photo'].apply(lambda x: 'Yes' if x not in [None, b'', ''] else 'No')
-
     df['Extra Data'] = df['additional_data'].fillna('N/A')
     df.rename(columns={'issue': 'Issue Type', 'location': 'Location', 'status': 'Status'}, inplace=True)
-
-    # Fill missing priority-related values for display
     for col in ['priority_index', 'sentiment_score', 'keyword_severity', 'frequency_score']:
         if col in df.columns:
             df[col] = df[col].fillna(0.0)
         else:
             df[col] = 0.0
-
     return df
-
 
 # --- Load Data ---
 df = get_all_grievances()
@@ -117,7 +103,6 @@ if selected_location:
 st.subheader("📊 Issue, Location & Priority Analytics")
 
 chart_col1, chart_col2 = st.columns([2, 2])
-
 with chart_col1:
     issue_chart = px.bar(
         filtered_df.groupby('Issue Type').size().reset_index(name='Count'),
@@ -141,7 +126,6 @@ st.subheader("🔥 High Priority Issues Overview")
 
 if 'priority_index' in filtered_df.columns and filtered_df['priority_index'].sum() != 0:
     high_priority_df = filtered_df.sort_values(by='priority_index', ascending=False).head(10)
-
     priority_chart = px.bar(
         high_priority_df,
         x='priority_index',
@@ -154,7 +138,6 @@ if 'priority_index' in filtered_df.columns and filtered_df['priority_index'].sum
     )
     priority_chart.update_layout(height=400, xaxis_title='Priority Index', yaxis_title=None)
     st.plotly_chart(priority_chart, use_container_width=True)
-
     st.dataframe(
         high_priority_df[['id', 'Issue Type', 'Location', 'Status', 'priority_index', 'sentiment_score', 'keyword_severity', 'frequency_score']],
         use_container_width=True
@@ -162,7 +145,7 @@ if 'priority_index' in filtered_df.columns and filtered_df['priority_index'].sum
 else:
     st.info("Priority index values not available yet. Run the bot to generate data.")
 
-# --- Map Visualization (if coordinates exist) ---
+# --- Map Visualization ---
 if {'latitude', 'longitude'}.issubset(df.columns):
     st.subheader("🗺️ Issue Heatmap by Location (Weighted by Priority)")
     map_fig = px.density_mapbox(
@@ -175,7 +158,7 @@ if {'latitude', 'longitude'}.issubset(df.columns):
 
 # --- Interactive Grievance List ---
 st.subheader("🧾 Recent Grievances")
-st.subheader("🧾 Recent Grievances")
+
 for _, row in filtered_df.head(10).iterrows():
     with st.container():
         st.markdown(f"""
@@ -191,6 +174,49 @@ for _, row in filtered_df.head(10).iterrows():
         </div>
         """, unsafe_allow_html=True)
 
-        # ✅ Add this snippet BELOW the st.markdown() call
-        image_html = convert_blob_to_image_html(row.get('photo'))
-        st.markdown(image_html, unsafe_allow_html=True)
+        # 📸 Zoomable Image Popup Section
+# 📸 Zoomable & Scrollable Popup Image Section
+        blob_data = row.get('photo')
+        if blob_data:
+            base64_str = base64.b64encode(blob_data).decode('utf-8')
+            image_html = f"""
+            <div style="text-align:center;">
+                <img src="data:image/jpeg;base64,{base64_str}" width="150"
+                    style="border-radius:10px; cursor:pointer;"
+                    onclick="openPopup{row['id']}()">
+            </div>
+
+            <div id="popup-{row['id']}" style="
+                display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+                background:rgba(0,0,0,0.9); justify-content:center; align-items:center; z-index:9999;">
+                <img id="popup-img-{row['id']}" src="data:image/jpeg;base64,{base64_str}"
+                    style="max-width:90%; max-height:90%; border-radius:12px; box-shadow:0 0 25px #000; transform:scale(1); transition:transform 0.2s ease;">
+            </div>
+
+            <script>
+            const popup{row['id']} = document.getElementById("popup-{row['id']}");
+            const img{row['id']} = document.getElementById("popup-img-{row['id']}");
+            let zoom{row['id']} = 1;
+
+            function openPopup{row['id']}() {{
+                popup{row['id']}.style.display = "flex";
+                zoom{row['id']} = 1;
+                img{row['id']}.style.transform = "scale(1)";
+            }}
+
+            popup{row['id']}.onclick = function(e) {{
+                if (e.target === popup{row['id']}) popup{row['id']}.style.display = "none";
+            }}
+
+            popup{row['id']}.addEventListener("wheel", function(e) {{
+                e.preventDefault();
+                if (e.deltaY < 0) zoom{row['id']} += 0.1;  // scroll up = zoom in
+                else zoom{row['id']} = Math.max(0.5, zoom{row['id']} - 0.1);  // scroll down = zoom out
+                img{row['id']}.style.transform = `scale(${{zoom{row['id']}}})`;
+            }});
+            </script>
+            """
+            st.markdown(image_html, unsafe_allow_html=True)
+        else:
+            st.markdown("<span style='color:#888'>❌ No image available</span>", unsafe_allow_html=True)
+
