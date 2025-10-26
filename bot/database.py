@@ -1,65 +1,62 @@
-# bot/database.py
+# ==========================================
+# 🧩 bot/database.py  — Final Integrated Version
+# ==========================================
+import os
 import mysql.connector
 from mysql.connector import Error
 from dotenv import load_dotenv
-import os
+from priority_index import calculate_priority_index
 
 load_dotenv()
 
-# These variables must be defined in your .env file
 DB_HOST = os.getenv("DB_HOST")
 DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_NAME = os.getenv("DB_NAME") # Reads the database name from .env
+DB_NAME = os.getenv("DB_NAME")
 
 
-# --- 1️⃣ Database connection ---
+# --------------------------------------------------
+# 1️⃣ Connection Helper
+# --------------------------------------------------
 def get_connection(db_name=None):
-    """
-    Connect to MySQL. If db_name is None, connect without selecting a database.
-    """
     try:
-        connection = mysql.connector.connect(
+        conn = mysql.connector.connect(
             host=DB_HOST,
             user=DB_USER,
             password=DB_PASSWORD,
             database=db_name
         )
-        return connection
+        return conn
     except Error as e:
         print(f"MySQL connection error: {e}")
         return None
 
 
-# --- 2️⃣ Initialize database ---
+# --------------------------------------------------
+# 2️⃣ Database Initialization
+# --------------------------------------------------
 def init_db():
     """
-    Create the database if it doesn't exist, then create the grievances table.
+    Creates the database and grievances table if missing.
     """
     try:
-        # Step 1: Connect without selecting a database
-        connection = get_connection()
-        if connection is None:
-            print("Could not initialize database: Failed to get connection.")
+        # Step 1: Create database if missing
+        root_conn = get_connection()
+        if root_conn is None:
+            print("❌ Failed to connect to MySQL server.")
             return
-        cursor = connection.cursor()
+        cur = root_conn.cursor()
+        cur.execute(f"CREATE DATABASE IF NOT EXISTS {DB_NAME}")
+        root_conn.commit()
+        cur.close()
+        root_conn.close()
 
-        # Step 2: Create database if not exists
-        # This will use the DB_NAME specified in your .env file (now civic_grivances)
-        cursor.execute(f"CREATE DATABASE IF NOT EXISTS {DB_NAME}")
-        connection.commit()
-        cursor.close()
-        connection.close()
+        # Step 2: Connect to target DB
+        conn = get_connection(DB_NAME)
+        cur = conn.cursor()
 
-        # Step 3: Connect to the new database
-        connection = get_connection(DB_NAME)
-        if connection is None:
-            print("Could not initialize database: Failed to connect to DB_NAME.")
-            return
-        cursor = connection.cursor()
-
-        # Step 4: Create grievances table if not exists (UPDATED SCHEMA)
-        cursor.execute("""
+        # Step 3: Create table (Latest Schema)
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS grievances (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 user_id BIGINT,
@@ -67,68 +64,122 @@ def init_db():
                 grievance TEXT,
                 issue VARCHAR(255) DEFAULT 'General complaint',
                 location VARCHAR(255) DEFAULT 'unknown',
-                photo_file_id VARCHAR(255) DEFAULT NULL,    -- New: Stores Telegram file_id for the photo
-                additional_data TEXT DEFAULT NULL,          -- New: Stores data from conditional questions
-                ai_reply VARCHAR(500) DEFAULT '',
+                photo LONGBLOB,
+                additional_data TEXT,
+                ai_reply TEXT,
+                sentiment_score FLOAT DEFAULT 0,
+                keyword_severity FLOAT DEFAULT 0,
+                frequency_score FLOAT DEFAULT 0,
+                priority_index FLOAT DEFAULT 0,
                 status VARCHAR(50) DEFAULT 'Pending',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        connection.commit()
-        cursor.close()
-        connection.close()
 
+        conn.commit()
+        cur.close()
+        conn.close()
+        print("✅ Database initialized successfully.")
     except Error as e:
         print(f"Database initialization error: {e}")
 
 
-# --- 3️⃣ Save grievance (UPDATED FUNCTION SIGNATURE) ---
-def save_grievance(user_id, username, grievance, issue="General complaint", location="unknown", 
-                   photo_file_id=None, additional_data=None, ai_reply=""):
+# --------------------------------------------------
+# 3️⃣ Save Grievance (Handles both File object and bytes)
+# --------------------------------------------------
+import traceback
+
+async def save_grievance(user_id, username, grievance,
+                         issue="General complaint", location="unknown",
+                         photo_file=None, additional_data=None, ai_reply=""):
     """
-    Save a grievance into the MySQL database, now including optional photo_file_id and additional_data.
+    Saves grievance data with optional photo (BLOB) and AI-based priority metrics.
+    Works safely with both Telegram File objects and already-downloaded bytes.
     """
     conn = get_connection(DB_NAME)
     if conn is None:
-        print("Failed to connect to database for saving grievance.")
+        print("❌ DB connection failed in save_grievance().")
         return
-    cursor = conn.cursor(dictionary=True)
 
-    query = """
-    INSERT INTO grievances (user_id, username, grievance, issue, location, photo_file_id, additional_data, ai_reply, status)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'Pending')
-    """
-    # Note: additional_data can be None, which is fine for MySQL TEXT column
+    cur = conn.cursor(dictionary=True)
+    photo_blob = None
+
+    # --- Handle photo download or pass raw bytes
+    if photo_file:
+        try:
+            if isinstance(photo_file, bytes):
+                # already downloaded in handlers
+                photo_blob = photo_file
+                print("🖼️ Photo received as raw bytes, skipping download.")
+            else:
+                # Telegram file object
+                print("⬇️ Downloading Telegram photo...")
+                file_info = await photo_file.get_file()
+                photo_bytes = await file_info.download_as_bytearray()
+                photo_blob = bytes(photo_bytes)
+                print("✅ Photo downloaded successfully.")
+        except Exception as e:
+            print(f"⚠️ Failed to download photo: {e}")
+            traceback.print_exc()
+
+    # --- Calculate Priority Index
     try:
-        cursor.execute(query, (user_id, username, grievance, issue, location, photo_file_id, additional_data, ai_reply))
+        sentiment, keyword_sev, freq, priority_idx = calculate_priority_index(grievance, issue)
+    except Exception as e:
+        print(f"⚠️ Priority index calculation failed: {e}")
+        sentiment, keyword_sev, freq, priority_idx = 0, 0, 0, 0
+
+    # --- Insert into DB
+    query = """
+        INSERT INTO grievances (
+            user_id, username, grievance, issue, location,
+            photo, additional_data, ai_reply,
+            sentiment_score, keyword_severity, frequency_score, priority_index, status
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Pending')
+    """
+
+    try:
+        cur.execute(query, (
+            user_id, username, grievance, issue, location,
+            photo_blob, additional_data, ai_reply,
+            sentiment, keyword_sev, freq, priority_idx
+        ))
         conn.commit()
+        print(f"✅ Grievance {cur.lastrowid} saved (priority={priority_idx:.3f})")
     except Error as e:
-        print(f"Error saving grievance to database: {e}")
+        print(f"❌ Error saving grievance: {e}")
+        traceback.print_exc()
     finally:
-        cursor.close()
+        cur.close()
         conn.close()
 
 
-# --- 4️⃣ Get user grievances (UPDATED SELECT) ---
+
+# --------------------------------------------------
+# 4️⃣ Retrieve Grievance Status
+# --------------------------------------------------
 def get_status(user_id):
-    """
-    Retrieve grievances for a user.
-    """
-    connection = get_connection(DB_NAME)
-    if connection is None:
+    conn = get_connection(DB_NAME)
+    if conn is None:
         return []
-    cursor = connection.cursor(dictionary=True)
-    # Added photo_file_id and additional_data to SELECT query
-    query = "SELECT id, grievance, issue, location, photo_file_id, additional_data, ai_reply, status, created_at FROM grievances WHERE user_id = %s ORDER BY id DESC"
+    cur = conn.cursor(dictionary=True)
+    query = """
+        SELECT id, grievance, issue, location, photo,
+               additional_data, ai_reply, status,
+               sentiment_score, keyword_severity,
+               frequency_score, priority_index, created_at
+        FROM grievances
+        WHERE user_id = %s
+        ORDER BY id DESC
+    """
     try:
-        cursor.execute(query, (user_id,))
-        rows = cursor.fetchall()
+        cur.execute(query, (user_id,))
+        rows = cur.fetchall()
         return rows
     except Error as e:
         print(f"Error fetching user status: {e}")
         return []
     finally:
-        cursor.close()
-        connection.close()
-
-
+        cur.close()
+        conn.close()
