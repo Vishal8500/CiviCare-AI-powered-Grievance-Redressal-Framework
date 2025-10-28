@@ -11,7 +11,7 @@
 
 
 ---
-Developed by *M Vishal & Jeeva M*
+Developed by *M Vishal (22MIA1014) & Jeeva M (22MIA1148)*
 ---
 ## 🚀 Project Overview
 This system automates grievance collection and prioritization for municipal governance using:
@@ -184,6 +184,7 @@ Open [Telegram Link](https://t.me/civicare_bot)
 ## 💡 Credits
 Developed by **M Vishal & Jeeva M**  
 Project: *AI-Based Civic Grievance Redressal System with Priority Analytics*
+
 
 
 
