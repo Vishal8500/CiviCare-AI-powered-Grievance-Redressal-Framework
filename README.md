@@ -98,11 +98,32 @@ Below are snapshots from the **Streamlit Civic Grievance Dashboard**, showcasing
 
 ## ⚙️ Step 1: Setup Environment
 1️⃣ Install Python 3.11+  
+
+Make sure Python 3.11 or later is installed.
+You can check with:
+
+```
+python --version
+```
+
 2️⃣ Create virtual environment and activate it  
+
+Windows (CMD or PowerShell):
+```
+python -m venv venv
+venv\Scripts\activate
+```
+
 3️⃣ Install dependencies  
+
+```
+pip install -r requirements.txt
+```
+
 4️⃣ Configure .env file
 
 Example .env:
+
 ```
 TELEGRAM_BOT_TOKEN="8331147973:AAHQ2eGRosrTE3Biu2xifNFwb2BJdOnyRYk"
 DB_HOST="localhost"
