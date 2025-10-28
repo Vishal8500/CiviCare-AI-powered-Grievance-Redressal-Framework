@@ -150,6 +150,8 @@ python main.py
 
 ✅ The bot will log: “🤖 Bot is running...”  
 Then test in Telegram:
+Open [Telegram Link](https://t.me/civicare_bot)
+
 ```
 /start
 /register Garbage overflowing near bus stop
@@ -205,6 +207,7 @@ Open [Telegram Link](https://t.me/civicare_bot)
 ## 💡 Credits
 Developed by **M Vishal & Jeeva M**  
 Project: *AI-Based Civic Grievance Redressal System with Priority Analytics*
+
 
 
 
