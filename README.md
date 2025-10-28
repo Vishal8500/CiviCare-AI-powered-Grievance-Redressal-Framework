@@ -13,6 +13,17 @@ This system automates grievance collection and prioritization for municipal gove
 - **Streamlit Dashboard** for data analytics, heatmaps, and visualization  
 
 ---
+
+## 🧩 System Architecture
+
+Below illustrates the **end-to-end flow** of the Civic Grievance AI system —  
+from complaint registration to AI prioritization, escalation, and analytics.
+
+<p align="center">
+  <img src="assets/arch.png" alt="System Architecture Flow" width="750"/>
+</p>
+
+---
 ```
 ## 🧰 Folder Structure
 ├── 📂 bot  
@@ -35,7 +46,7 @@ This system automates grievance collection and prioritization for municipal gove
 ---
 
 ## ⚙️ Step 1: Setup Environment
-1️⃣ Install Python 3.10+  
+1️⃣ Install Python 3.11+  
 2️⃣ Create virtual environment and activate it  
 3️⃣ Install dependencies  
 4️⃣ Configure .env file
@@ -93,7 +104,36 @@ Open [http://localhost:8501](http://localhost:8501)
 
 ---
 
+
+## 💬 Telegram Bot Demo Flow
+
+This demonstrates the **CiviCare Bot** interaction on Telegram 👇  
+
+<p align="center">
+  <img src="assets/bot_ui.jpg" alt="Telegram bot message flow" width="400"/>
+</p>
+
+🗣️ The bot automatically:
+- Detects the issue type (e.g., *Fire Hazards*)  
+- Requests photos or extra details based on configuration  
+- Generates AI-based acknowledgments  
+- Saves and prioritizes the complaint using NLP & BERT models  
+
+---
+
+## 📱 Quick Access via QR Code
+
+Scan the QR below to access or test the **Telegram Bot** instantly: (Note: Check whether the backend is running)
+
+<p align="center">
+  <img src="assets/qr.png" alt="QR Code for Telegram Bot" width="200"/>
+</p>
+
+---
+
+
 ## 💡 Credits
 Developed by **M Vishal & Jeeva M**  
 Project: *AI-Based Civic Grievance Redressal System with Priority Analytics*
+
 
