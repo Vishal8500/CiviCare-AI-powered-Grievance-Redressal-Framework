@@ -1,11 +1,14 @@
 # ==========================================
-# 🧩 bot/database.py  — Final Integrated Version
+# bot/database.py — Final Version: Safe Column Add + Notify Any Department
 # ==========================================
+
 import os
 import mysql.connector
 from mysql.connector import Error
 from dotenv import load_dotenv
 from priority_index import calculate_priority_index
+import traceback
+import asyncio
 
 load_dotenv()
 
@@ -16,7 +19,7 @@ DB_NAME = os.getenv("DB_NAME")
 
 
 # --------------------------------------------------
-# 1️⃣ Connection Helper
+# 1. Connection Helper
 # --------------------------------------------------
 def get_connection(db_name=None):
     try:
@@ -33,17 +36,18 @@ def get_connection(db_name=None):
 
 
 # --------------------------------------------------
-# 2️⃣ Database Initialization
+# 2. Database Initialization (Safe Column Add – No IF NOT EXISTS)
 # --------------------------------------------------
 def init_db():
     """
     Creates the database and grievances table if missing.
+    Safely adds `notified_to_dept` column if it doesn't exist.
     """
     try:
         # Step 1: Create database if missing
         root_conn = get_connection()
         if root_conn is None:
-            print("❌ Failed to connect to MySQL server.")
+            print("Failed to connect to MySQL server.")
             return
         cur = root_conn.cursor()
         cur.execute(f"CREATE DATABASE IF NOT EXISTS {DB_NAME}")
@@ -53,10 +57,13 @@ def init_db():
 
         # Step 2: Connect to target DB
         conn = get_connection(DB_NAME)
+        if not conn:
+            print("Failed to connect to database after creation.")
+            return
         cur = conn.cursor()
 
-        # Step 3: Create table (Latest Schema)
-        cur.execute("""
+        # Step 3: Create base table
+        create_table_query = """
             CREATE TABLE IF NOT EXISTS grievances (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 user_id BIGINT,
@@ -74,59 +81,64 @@ def init_db():
                 status VARCHAR(50) DEFAULT 'Pending',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """)
+        """
+        cur.execute(create_table_query)
+
+        # Step 4: Add `notified_to_dept` safely (MySQL doesn't support IF NOT EXISTS for columns)
+        cur.execute("SHOW COLUMNS FROM grievances LIKE 'notified_to_dept'")
+        if not cur.fetchone():
+            cur.execute("ALTER TABLE grievances ADD COLUMN notified_to_dept BOOLEAN DEFAULT FALSE")
+            print("Added column: notified_to_dept")
+        else:
+            print("Column notified_to_dept already exists")
 
         conn.commit()
         cur.close()
         conn.close()
-        print("✅ Database initialized successfully.")
+        print("Database initialized successfully with all columns.")
     except Error as e:
         print(f"Database initialization error: {e}")
+        traceback.print_exc()
 
 
 # --------------------------------------------------
-# 3️⃣ Save Grievance (Handles both File object and bytes)
+# 3. Save Grievance (Handles both File object and bytes)
 # --------------------------------------------------
-import traceback
-
 async def save_grievance(user_id, username, grievance,
                          issue="General complaint", location="unknown",
                          photo_file=None, additional_data=None, ai_reply=""):
     """
     Saves grievance data with optional photo (BLOB) and AI-based priority metrics.
-    Works safely with both Telegram File objects and already-downloaded bytes.
     """
     conn = get_connection(DB_NAME)
     if conn is None:
-        print("❌ DB connection failed in save_grievance().")
+        print("DB connection failed in save_grievance().")
         return
 
     cur = conn.cursor(dictionary=True)
     photo_blob = None
 
-    # --- Handle photo download or pass raw bytes
+    # --- Handle photo
     if photo_file:
         try:
             if isinstance(photo_file, bytes):
-                # already downloaded in handlers
                 photo_blob = photo_file
-                print("🖼️ Photo received as raw bytes, skipping download.")
+                print("Photo received as raw bytes.")
             else:
-                # Telegram file object
-                print("⬇️ Downloading Telegram photo...")
+                print("Downloading Telegram photo...")
                 file_info = await photo_file.get_file()
                 photo_bytes = await file_info.download_as_bytearray()
                 photo_blob = bytes(photo_bytes)
-                print("✅ Photo downloaded successfully.")
+                print("Photo downloaded successfully.")
         except Exception as e:
-            print(f"⚠️ Failed to download photo: {e}")
+            print(f"Failed to download photo: {e}")
             traceback.print_exc()
 
     # --- Calculate Priority Index
     try:
         sentiment, keyword_sev, freq, priority_idx = calculate_priority_index(grievance, issue)
     except Exception as e:
-        print(f"⚠️ Priority index calculation failed: {e}")
+        print(f"Priority index calculation failed: {e}")
         sentiment, keyword_sev, freq, priority_idx = 0, 0, 0, 0
 
     # --- Insert into DB
@@ -146,18 +158,17 @@ async def save_grievance(user_id, username, grievance,
             sentiment, keyword_sev, freq, priority_idx
         ))
         conn.commit()
-        print(f"✅ Grievance {cur.lastrowid} saved (priority={priority_idx:.3f})")
+        print(f"Grievance {cur.lastrowid} saved (priority={priority_idx:.3f})")
     except Error as e:
-        print(f"❌ Error saving grievance: {e}")
+        print(f"Error saving grievance: {e}")
         traceback.print_exc()
     finally:
         cur.close()
         conn.close()
 
 
-
 # --------------------------------------------------
-# 4️⃣ Retrieve Grievance Status
+# 4. Retrieve Grievance Status (for user)
 # --------------------------------------------------
 def get_status(user_id):
     conn = get_connection(DB_NAME)
@@ -168,7 +179,8 @@ def get_status(user_id):
         SELECT id, grievance, issue, location, photo,
                additional_data, ai_reply, status,
                sentiment_score, keyword_severity,
-               frequency_score, priority_index, created_at
+               frequency_score, priority_index, created_at,
+               notified_to_dept
         FROM grievances
         WHERE user_id = %s
         ORDER BY id DESC
@@ -180,6 +192,61 @@ def get_status(user_id):
     except Error as e:
         print(f"Error fetching user status: {e}")
         return []
+    finally:
+        cur.close()
+        conn.close()
+
+
+# --------------------------------------------------
+# 5. Update Grievance Status
+# --------------------------------------------------
+async def update_grievance_status(grievance_id, new_status):
+    """
+    Updates the status of a grievance.
+    """
+    conn = get_connection(DB_NAME)
+    if conn is None:
+        print("DB connection failed in update_grievance_status().")
+        return False
+
+    cur = conn.cursor()
+    query = "UPDATE grievances SET status = %s WHERE id = %s"
+    try:
+        cur.execute(query, (new_status, grievance_id))
+        conn.commit()
+        print(f"Grievance {grievance_id} status updated to {new_status}")
+        return True
+    except Error as e:
+        print(f"Error updating grievance status: {e}")
+        return False
+    finally:
+        cur.close()
+        conn.close()
+
+
+# --------------------------------------------------
+# 6. Notify Department (Works for ALL Issue Types)
+# --------------------------------------------------
+async def notify_department(grievance_id):
+    """
+    Marks a grievance as notified to the relevant department.
+    Sets `notified_to_dept = TRUE`
+    """
+    conn = get_connection(DB_NAME)
+    if conn is None:
+        print("DB connection failed in notify_department().")
+        return False
+
+    cur = conn.cursor()
+    query = "UPDATE grievances SET notified_to_dept = TRUE WHERE id = %s"
+    try:
+        cur.execute(query, (grievance_id,))
+        conn.commit()
+        print(f"Grievance {grievance_id} notified to department.")
+        return True
+    except Error as e:
+        print(f"Error notifying department: {e}")
+        return False
     finally:
         cur.close()
         conn.close()
