@@ -1,5 +1,14 @@
-# 🏛️ Civic Grievance Collector – AI-Driven Redressal System
-A complete smart governance solution integrating **Telegram chatbot**, **AI-based issue classification**, **priority indexing**, and a **Streamlit dashboard** for analytics and visualization.
+## 🏛️ CiviCare AI – Smart Grievance Redressal Framework
+
+
+<p align="justify">
+  An AI-powered civic grievance management system that automates complaint handling through <b>NLP</b>, <b>sentiment analysis</b>, and <b>Generative AI (Gemini API)</b>.  
+  Citizens can instantly report issues via a <b>Telegram chatbot</b> using text, photos, or QR-based access. The system intelligently classifies, prioritizes, and escalates complaints using a dynamic <b>priority index</b>, while all data are stored and reflected on a <b>MySQL–Streamlit dashboard</b> that empowers municipal officers to monitor, act, and resolve citizen grievances efficiently.  
+</p>
+
+
+> ⚡ Empowering smarter, faster, and transparent governance through AI-driven automation.
+
 
 ---
 Developed by *M Vishal & Jeeva M*
@@ -24,6 +33,48 @@ from complaint registration to AI prioritization, escalation, and analytics.
 </p>
 
 ---
+
+## 📊 Dashboard UI Preview
+
+Below are snapshots from the **Streamlit Civic Grievance Dashboard**, showcasing real-time analytics, prioritization, and escalation workflows.  
+
+### 🔸 Dashboard Overview  
+<p align="center">
+  <img src="assets/1a.jpg" alt="Civic Dashboard Overview" width="750"/>
+</p>
+
+### 🔸 High Priority Issues Analytics  
+<p align="center">
+  <img src="assets/1.jpg" alt="High Priority Issues Overview" width="750"/>
+</p>
+
+### 🔸 Complaint Detail Cards  
+<p align="center">
+  <img src="assets/2.jpg" alt="Department Notified Popup" width="750"/>
+</p>
+
+### 🔸 Department Escalation Notification  
+<p align="center">
+  <img src="assets/3.jpg" alt="Complaint Cards Section" width="750"/>
+</p>
+
+### 🔸 Monthy Report Generation
+<p align="center">
+  <img src="assets/4.jpg" alt="Complaint Cards Section" width="750"/>
+</p>
+
+---
+
+✅ **Each dashboard module demonstrates:**
+- AI-driven prioritization based on sentiment, severity, and frequency.  
+- Real-time grievance filtering (Issue Type, Status, Location).  
+- Interactive visualizations built using Plotly + Streamlit.  
+- Automated escalation alerts to concerned departments.  
+- Dynamic monitoring through heatmaps, charts, and tables.
+- Monthy report generated in one-click (pdf/csv)
+
+---
+
 ```
 ## 🧰 Folder Structure
 ├── 📂 bot  
@@ -133,6 +184,7 @@ Open [Telegram Link](https://t.me/civicare_bot)
 ## 💡 Credits
 Developed by **M Vishal & Jeeva M**  
 Project: *AI-Based Civic Grievance Redressal System with Priority Analytics*
+
 
 
 
