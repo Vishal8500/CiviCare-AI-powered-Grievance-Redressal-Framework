@@ -123,11 +123,9 @@ This demonstrates the **CiviCare Bot** interaction on Telegram 👇
 
 ## 📱 Quick Access via QR Code
 
-Scan the QR below to access or test the **Telegram Bot** instantly: (Note: Check whether the backend is running)
+Click the link to access or test the **Telegram Bot** instantly: (Note: Check whether the backend is running)
 
-<p align="center">
-  <img src="assets/qr.png" alt="QR Code for Telegram Bot" width="200"/>
-</p>
+Open [Telegram Link](https://t.me/civicare_bot)
 
 ---
 
@@ -135,5 +133,6 @@ Scan the QR below to access or test the **Telegram Bot** instantly: (Note: Check
 ## 💡 Credits
 Developed by **M Vishal & Jeeva M**  
 Project: *AI-Based Civic Grievance Redressal System with Priority Analytics*
+
 
 
